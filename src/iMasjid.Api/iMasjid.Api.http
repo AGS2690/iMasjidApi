@@ -1,0 +1,6 @@
+@iMasjid.Api_HostAddress = http://localhost:5174
+
+GET {{iMasjid.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

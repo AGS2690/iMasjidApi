@@ -1,0 +1,36 @@
+# ==============================================================================
+# EF CORE DATABASE-FIRST SCRIPTS & SCAFFOLD GUIDE (PostgreSQL / Npgsql)
+# ==============================================================================
+# Server:   localhost
+# Port:     5432
+# Database: iMasjid
+# User:     postgres
+# Password: Ags@2690
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Executing SQL Scripts via psql (Executed & Active):
+# ------------------------------------------------------------------------------
+# Schema DDL (creates 16 tables, 20 indexes, view, functions, extensions):
+# psql -U postgres -h localhost -p 5432 -d iMasjid -f "src/iMasjid.Infrastructure/Persistence/Scripts/InitialTableSchema.sql"
+
+# Seed Data (roles, permissions, default superadmin, menus, actions):
+# psql -U postgres -h localhost -p 5432 -d iMasjid -f "src/iMasjid.Infrastructure/Persistence/Scripts/InitialDataInsert.sql"
+
+# ------------------------------------------------------------------------------
+# 2. Clean Architecture Entity Pattern:
+# ------------------------------------------------------------------------------
+# Domain entities reside in:
+#   src/iMasjid.Domain/Entities/ (inherit AuditableEntity<Guid> / BaseEntity<Guid>)
+#
+# Entity configurations reside in:
+#   src/iMasjid.Infrastructure/Persistence/Configurations/ (IEntityTypeConfiguration<T>)
+#
+# DbContext:
+#   src/iMasjid.Infrastructure/Persistence/AppDbContext.cs (supports soft-delete filters, auto-audit, UUID defaults)
+
+# ------------------------------------------------------------------------------
+# 3. EF Core CLI Reverse-Engineering (Reference):
+# ------------------------------------------------------------------------------
+# To inspect or reverse-engineer newly added database tables:
+# dotnet ef dbcontext scaffold "Host=localhost;Port=5432;Database=iMasjid;Username=postgres;Password=Ags@2690;" Npgsql.EntityFrameworkCore.PostgreSQL --project src/iMasjid.Infrastructure --startup-project src/iMasjid.Api --output-dir Persistence/Scaffolded --no-onconfiguring

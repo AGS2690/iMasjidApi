@@ -1,0 +1,17 @@
+namespace iMasjid.Application.DTOs.Responses.Localization;
+
+public class SupportedLanguageResponse
+{
+    public Guid Id { get; set; }
+    public int DisplayOrder { get; set; }
+    public string CountryName { get; set; } = string.Empty;
+    public string PhoneCode { get; set; } = string.Empty;
+    public string LanguageName { get; set; } = string.Empty;
+    public string CultureCode { get; set; } = string.Empty;
+    public string CurrencySymbol { get; set; } = string.Empty;
+    public string CurrencyName { get; set; } = string.Empty;
+    public string CurrencyCode { get; set; } = string.Empty;
+    public string Direction { get; set; } = "LTR";
+    public string FlagIconUrl { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+}
