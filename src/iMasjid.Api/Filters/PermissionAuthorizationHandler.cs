@@ -24,14 +24,12 @@ public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionReq
             return;
         }
 
-        // 1. SuperAdmin bypass
         if (context.User.IsInRole(Roles.SuperAdmin))
         {
             context.Succeed(requirement);
             return;
         }
 
-        // 2. Check JWT permission claims
         var permissionsFromClaims = context.User.FindAll("permission").Select(c => c.Value);
         if (permissionsFromClaims.Contains(requirement.Permission, StringComparer.OrdinalIgnoreCase))
         {
@@ -39,7 +37,6 @@ public class PermissionAuthorizationHandler : AuthorizationHandler<PermissionReq
             return;
         }
 
-        // 3. Fallback to cached effective permissions from database
         var userIdClaim = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
                           ?? context.User.FindFirst("sub")?.Value;
 

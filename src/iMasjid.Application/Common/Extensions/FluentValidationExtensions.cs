@@ -18,10 +18,6 @@ public static class FluentValidationExtensions
         "expression("
     };
 
-    /// <summary>
-    /// Validates that a string does not contain HTML/script injection characters (&lt; or &gt;) or malicious script payloads.
-    /// Allows null or empty values if the field is optional.
-    /// </summary>
     public static IRuleBuilderOptions<T, string?> NoScriptTags<T>(this IRuleBuilder<T, string?> ruleBuilder)
     {
         return ruleBuilder
@@ -34,11 +30,9 @@ public static class FluentValidationExtensions
         if (string.IsNullOrWhiteSpace(value))
             return true; // Allow null or empty for optional fields
 
-        // Disallow '<' and '>' to prevent any HTML/XML/Script tags
         if (value.Contains('<') || value.Contains('>'))
             return false;
 
-        // Check for common malicious script keywords (case-insensitive)
         foreach (var pattern in DangerousPatterns)
         {
             if (value.IndexOf(pattern, StringComparison.OrdinalIgnoreCase) >= 0)

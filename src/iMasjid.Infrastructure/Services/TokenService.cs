@@ -1,4 +1,4 @@
-﻿using System.IdentityModel.Tokens.Jwt;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -75,7 +75,6 @@ public class TokenService : ITokenService
         var securityToken = tokenHandler.CreateToken(tokenDescriptor);
         var accessToken = tokenHandler.WriteToken(securityToken);
 
-        // Generate Refresh Token
         var refreshToken = GenerateSecureRefreshToken();
         var refreshTokenEntity = new ImRefreshToken
         {
@@ -127,7 +126,6 @@ public class TokenService : ITokenService
 
         if (storedToken.IsRevoked)
         {
-            // Token Reuse Protection: If a revoked token is used, revoke all user tokens for security
             await RevokeAllUserTokensAsync(userId, ipAddress, cancellationToken);
             throw new SecurityTokenException("Attempted reuse of revoked refresh token. All active sessions have been invalidated.");
         }
@@ -156,7 +154,6 @@ public class TokenService : ITokenService
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        // Create new JWT
         var tokenHandler = new JwtSecurityTokenHandler();
         var key = Encoding.UTF8.GetBytes(_jwtSettings.SecretKey);
         var jwtId = Guid.NewGuid().ToString();

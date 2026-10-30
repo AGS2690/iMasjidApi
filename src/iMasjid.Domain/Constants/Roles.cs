@@ -16,7 +16,6 @@ public static class Roles
     public const string Technician = "Technician";
     public const string Accountant = "Accountant";
 
-    // Compatibility aliases
     public const string Admin = MosqueAdmin;
     public const string User = Member;
 

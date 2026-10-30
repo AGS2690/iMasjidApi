@@ -72,8 +72,6 @@ public class DistributedCacheService : ICacheService
 
     public async Task RemoveByPrefixAsync(string prefixKey, CancellationToken cancellationToken = default)
     {
-        // Note: For standard IDistributedCache, prefix removal requires Lua scripting or pattern scan on Redis
-        // In this default distributed implementation, key removal can be handled via specific keys.
         await _distributedCache.RemoveAsync(prefixKey, cancellationToken);
     }
 

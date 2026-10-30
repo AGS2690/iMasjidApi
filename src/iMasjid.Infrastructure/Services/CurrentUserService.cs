@@ -49,18 +49,15 @@ public class CurrentUserService : ICurrentUserService
             var context = _httpContextAccessor.HttpContext;
             if (context == null) return "id-ID";
 
-            // 1. Query parameter (e.g. ?culture=id-ID or ?lang=id)
             var raw = context.Request.Query["culture"].ToString();
             if (string.IsNullOrWhiteSpace(raw))
                 raw = context.Request.Query["lang"].ToString();
 
-            // 2. Custom header X-Culture / X-Language
             if (string.IsNullOrWhiteSpace(raw))
                 raw = context.Request.Headers["X-Culture"].ToString();
             if (string.IsNullOrWhiteSpace(raw))
                 raw = context.Request.Headers["X-Language"].ToString();
 
-            // 3. Standard Accept-Language header
             if (string.IsNullOrWhiteSpace(raw))
                 raw = context.Request.Headers["Accept-Language"].ToString();
 

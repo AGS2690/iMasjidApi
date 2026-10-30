@@ -1,4 +1,4 @@
-﻿using Hangfire;
+using Hangfire;
 using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
@@ -15,11 +15,9 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddBackgroundJobs(this IServiceCollection services, IConfiguration configuration)
     {
-        // 1. Email configuration & service
         services.Configure<EmailSettings>(configuration.GetSection(EmailSettings.SectionName));
         services.AddScoped<IEmailService, EmailService>();
 
-        // 2. Hangfire settings
         var hangfireSettings = new HangfireSettings();
         configuration.GetSection(HangfireSettings.SectionName).Bind(hangfireSettings);
 
@@ -32,7 +30,6 @@ public static class DependencyInjection
 
         services.Configure<HangfireSettings>(configuration.GetSection(HangfireSettings.SectionName));
 
-        // 3. Hangfire Server & PostgreSQL Storage
         var connectionString = configuration.GetConnectionString("DefaultConnection");
 
         if (!string.Equals(connectionString, "InMemory", StringComparison.OrdinalIgnoreCase))
@@ -57,7 +54,6 @@ public static class DependencyInjection
             });
         }
 
-        // 4. Background Job Dispatcher (Clean Architecture implementation)
         services.AddSingleton<IBackgroundJobService, HangfireBackgroundJobService>();
 
         return services;

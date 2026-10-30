@@ -20,7 +20,6 @@ public static class DependencyInjection
     {
         var assembly = Assembly.GetExecutingAssembly();
 
-        // Register AutoMapper with modular feature-based mapping profiles
         services.AddAutoMapper(cfg =>
         {
             cfg.AddProfile<UserMappingProfile>();
@@ -31,10 +30,8 @@ public static class DependencyInjection
             cfg.AddProfile<LocaleMappingProfile>();
         });
 
-        // Register FluentValidation validators from current assembly
         services.AddValidatorsFromAssembly(assembly);
 
-        // Register Application feature services
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IRoleService, RoleService>();

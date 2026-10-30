@@ -52,7 +52,6 @@ public class UserRepository : GenericRepository<ImUser>, IUserRepository
 
     public async Task<IReadOnlyList<string>> GetUserPermissionsAsync(Guid userId, CancellationToken cancellationToken = default)
     {
-        // Role-based Permissions only
         return await _context.ImUserRoles
             .AsNoTracking()
             .Where(ur => ur.UserId == userId && ur.Role.IsActive && !ur.Role.IsDeleted)

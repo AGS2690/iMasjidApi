@@ -1,4 +1,4 @@
-﻿using System.Threading.RateLimiting;
+using System.Threading.RateLimiting;
 using System.Net;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -16,7 +16,6 @@ public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddApiServices(this IServiceCollection services, IConfiguration configuration)
     {
-        // 1. Controllers & Consistent API Model Validation Response
         services.AddControllers(options =>
         {
             options.Filters.Add<ValidationFilter>();
@@ -54,11 +53,9 @@ public static class ServiceCollectionExtensions
             }
         });
 
-        // 2. Permission-based Authorization
         services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
         services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
-        // 3. CORS – strictly allow ONLY the origins listed in appsettings.json "Cors:AllowedOrigins"
         var corsOrigins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
 
         if (corsOrigins == null || corsOrigins.Length == 0)
@@ -78,7 +75,6 @@ public static class ServiceCollectionExtensions
             });
         });
 
-        // 4. Native ASP.NET Core Rate Limiting configured dynamically from appsettings
         var rateLimitingSettings = new RateLimitingSettings();
         configuration.GetSection(RateLimitingSettings.SectionName).Bind(rateLimitingSettings);
         services.Configure<RateLimitingSettings>(configuration.GetSection(RateLimitingSettings.SectionName));
@@ -104,14 +100,12 @@ public static class ServiceCollectionExtensions
                     await context.HttpContext.Response.WriteAsJsonAsync(response, cancellationToken: token);
                 };
 
-                // Dynamic Endpoint Rate Limiting Policy (Enforces rules configured in appsettings.json)
                 options.AddPolicy("DynamicEndpointRateLimitPolicy", httpContext =>
                 {
                     var clientIp = GetClientIp(httpContext, rateLimitingSettings.RealIpHeader);
                     var method = httpContext.Request.Method;
                     var path = httpContext.Request.Path.Value ?? string.Empty;
 
-                    // Match against configured EndpointRules
                     var matchedRule = rateLimitingSettings.EndpointRules
                         .FirstOrDefault(rule => MatchesEndpointRule(rule.Endpoint, method, path));
 
@@ -131,7 +125,6 @@ public static class ServiceCollectionExtensions
             });
         }
 
-        // 5. Swagger / OpenAPI with JWT Bearer Definition
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen(options =>
         {
@@ -140,7 +133,6 @@ public static class ServiceCollectionExtensions
                 Title = "iMasjid API"
             });
 
-            // Include XML doc comments so <example> tags on DTOs appear in swagger.json
             var apiXml = Path.Combine(AppContext.BaseDirectory, "iMasjid.Api.xml");
             if (File.Exists(apiXml)) options.IncludeXmlComments(apiXml, includeControllerXmlComments: true);
 
@@ -173,7 +165,6 @@ public static class ServiceCollectionExtensions
             });
         });
 
-        // 6. Health Checks
         services.AddHealthChecks()
             .AddDbContextCheck<AppDbContext>("Database");
 
@@ -198,14 +189,12 @@ public static class ServiceCollectionExtensions
             targetPath = parts[1].Trim();
         }
 
-        // Method check
         if (!targetMethod.Equals("*", StringComparison.OrdinalIgnoreCase) &&
             !targetMethod.Equals(httpMethod, StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        // Path check (support prefix wildcard /api/auth/*)
         if (targetPath.EndsWith('*'))
         {
             var prefix = targetPath.TrimEnd('*');

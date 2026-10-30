@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -45,7 +45,6 @@ public class OtpService : IOtpService
     {
         var now = _dateTimeProvider.UtcNow;
 
-        // Invalidate previous unused OTPs for the same user and purpose
         var previousOtps = await _context.ImUserOtps
             .Where(o => o.UserId == user.Id && o.Purpose == purpose && !o.IsUsed && o.ExpiresOn > now)
             .ToListAsync(cancellationToken);
@@ -56,7 +55,6 @@ public class OtpService : IOtpService
             oldOtp.UsedOn = now;
         }
 
-        // Generate cryptographically secure 6-digit numeric code
         var otpNumber = RandomNumberGenerator.GetInt32(100000, 1000000);
         var otpCode = otpNumber.ToString();
 
@@ -77,7 +75,6 @@ public class OtpService : IOtpService
         await _context.ImUserOtps.AddAsync(otpEntity, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-        // Send OTP via email
         if (!string.IsNullOrWhiteSpace(user.Email))
         {
             await _emailService.SendOtpEmailAsync(

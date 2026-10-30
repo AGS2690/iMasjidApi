@@ -153,7 +153,6 @@ public class AuthService : IAuthService
             throw new UnauthorizedException("Invalid username or password.");
         }
 
-        // If Two-Factor Authentication is enabled, trigger OTP to email and require 2FA verification
         if (user.TwoFactorEnabled)
         {
             await _otpService.GenerateAndSendOtpAsync(user, OtpPurposes.TwoFactor, ipAddress, cancellationToken);
@@ -166,7 +165,6 @@ public class AuthService : IAuthService
             };
         }
 
-        // Standard Password Login (when Two-Factor is disabled)
         return await CompleteLoginAsync(user, identifier, ipAddress, cancellationToken);
     }
 
@@ -320,7 +318,6 @@ public class AuthService : IAuthService
         user.PasswordHash = _passwordHasher.HashPassword(request.NewPassword);
         _userRepository.Update(user);
 
-        // Invalidate all existing tokens upon password change
         await _tokenService.RevokeAllUserTokensAsync(userId, _currentUserService.IpAddress, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
@@ -335,7 +332,6 @@ public class AuthService : IAuthService
             _currentUserService.UserAgent,
             cancellationToken);
 
-        // Schedule delayed password change notification email asynchronously via Hangfire (3-second delay, non-blocking)
         if (!string.IsNullOrWhiteSpace(user.Email))
         {
             var changedTime = _dateTimeProvider.UtcNow;
@@ -358,7 +354,6 @@ public class AuthService : IAuthService
         user.LastLoginDate = _dateTimeProvider.UtcNow;
         _userRepository.Update(user);
 
-        // Record successful login history
         await RecordLoginHistoryAsync(user.Id, identifier, ipAddress, true, null, cancellationToken);
 
         await _unitOfWork.SaveChangesAsync(cancellationToken);
@@ -374,7 +369,6 @@ public class AuthService : IAuthService
             _currentUserService.UserAgent,
             cancellationToken);
 
-        // Schedule delayed email notification asynchronously via Hangfire (3-second delay, non-blocking)
         if (!string.IsNullOrWhiteSpace(user.Email))
         {
             var loginTime = user.LastLoginDate.Value;
@@ -419,13 +413,11 @@ public class AuthService : IAuthService
             await _loginHistoryRepository.AddAsync(history, cancellationToken);
             if (!isSuccess)
             {
-                // Save failed attempt immediately
                 await _unitOfWork.SaveChangesAsync(cancellationToken);
             }
         }
         catch
         {
-            // Do not fail login flow if login history recording encounters an issue
         }
     }
 }

@@ -16,11 +16,6 @@ public class LocalesController : BaseApiController
         _localeService = localeService;
     }
 
-    /// <summary>
-    /// Gets the list of supported application languages and locales.
-    /// </summary>
-    /// <param name="onlyActive">Optional filter to return only active languages (defaults to true).</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
     [HttpGet("supported-languages")]
     [HttpGet]
     [AllowAnonymous]
@@ -31,9 +26,6 @@ public class LocalesController : BaseApiController
         return OkResponse(languages, "Supported languages retrieved successfully.");
     }
 
-    /// <summary>
-    /// Gets a supported locale by its unique identifier.
-    /// </summary>
     [HttpGet("{id:guid}")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(ApiResponse<SupportedLanguageResponse>), StatusCodes.Status200OK)]
@@ -47,9 +39,6 @@ public class LocalesController : BaseApiController
         return OkResponse(locale);
     }
 
-    /// <summary>
-    /// Gets a supported locale by its culture code (e.g. en-US, ar-SA, id-ID).
-    /// </summary>
     [HttpGet("by-culture/{cultureCode}")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(ApiResponse<SupportedLanguageResponse>), StatusCodes.Status200OK)]

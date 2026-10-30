@@ -21,14 +21,12 @@ public class HangfireCustomBasicAuthFilter : IDashboardAuthorizationFilter
             return false;
         }
 
-        // 1. Check if user is already authenticated via JWT / Cookie with SuperAdmin role
         if (httpContext.User.Identity?.IsAuthenticated == true &&
             httpContext.User.IsInRole(Roles.SuperAdmin))
         {
             return true;
         }
 
-        // 2. Check HTTP Basic Authentication Header
         var authHeader = httpContext.Request.Headers.Authorization.ToString();
         if (!string.IsNullOrWhiteSpace(authHeader) && authHeader.StartsWith("Basic ", StringComparison.OrdinalIgnoreCase))
         {
@@ -59,11 +57,9 @@ public class HangfireCustomBasicAuthFilter : IDashboardAuthorizationFilter
             }
             catch
             {
-                // Invalid credentials format
             }
         }
 
-        // 3. Challenge browser with HTTP 401 & WWW-Authenticate header
         httpContext.Response.Headers.Append("WWW-Authenticate", "Basic realm=\"Hangfire Private Dashboard\"");
         httpContext.Response.StatusCode = StatusCodes.Status401Unauthorized;
 

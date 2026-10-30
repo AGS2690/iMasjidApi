@@ -1,5 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -33,7 +32,6 @@ public class TestFixture : IDisposable
 
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(inMemorySettings)
-            .AddUserSecrets(Assembly.Load("iMasjid.Api"), optional: true)
             .AddEnvironmentVariables()
             .Build();
 

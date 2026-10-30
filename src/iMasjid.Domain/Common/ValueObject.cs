@@ -1,8 +1,5 @@
 namespace iMasjid.Domain.Common;
 
-/// <summary>
-/// Base class for Domain Value Objects that implement structural equality.
-/// </summary>
 public abstract class ValueObject
 {
     protected abstract IEnumerable<object?> GetEqualityComponents();

@@ -3,13 +3,6 @@ using iMasjid.Application.Interfaces.Services;
 
 namespace iMasjid.Infrastructure.Services;
 
-/// <summary>
-/// Enterprise-grade password hasher using PBKDF2 with HMAC-SHA512.
-/// Complies with NIST SP 800-63B guidelines:
-/// - 128-bit (16 bytes) cryptographically random salt per password.
-/// - 100,000 iterations of PBKDF2 with SHA-512.
-/// - Constant-time equality comparison to eliminate timing-attack side channels.
-/// </summary>
 public class PasswordHasher : IPasswordHasher
 {
     private const int SaltSize = 16; // 128 bit

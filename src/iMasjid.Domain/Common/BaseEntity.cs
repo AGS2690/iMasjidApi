@@ -1,9 +1,5 @@
 namespace iMasjid.Domain.Common;
 
-/// <summary>
-/// Base class for all domain entities.
-/// </summary>
-/// <typeparam name="TId">The type of the primary key.</typeparam>
 public abstract class BaseEntity<TId>
 {
     public TId Id { get; set; } = default!;

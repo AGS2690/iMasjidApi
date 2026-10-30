@@ -108,7 +108,6 @@ public class MenuService : IMenuService
             CreatedBy = _currentUserService.UserName
         };
 
-        // Map initial actions if provided
         if (request.ActionIds != null && request.ActionIds.Count > 0)
         {
             foreach (var actionId in request.ActionIds)
@@ -192,7 +191,6 @@ public class MenuService : IMenuService
         if (menu == null || menu.IsDeleted)
             throw new NotFoundException(nameof(ImMenu), id);
 
-        // Cascade soft-delete to children
         var children = await _menuRepository.FindAsync(m => m.ParentId == id && !m.IsDeleted, cancellationToken);
         foreach (var child in children)
         {
@@ -269,16 +267,13 @@ public class MenuService : IMenuService
 
         if (isSuperAdmin)
         {
-            // SuperAdmin has full visibility to all active menus and all menu actions
             var allActiveMenus = await _menuRepository.GetAllWithActionsAsync(true, cancellationToken);
             return BuildUserNavTree(allActiveMenus.ToList(), null, null, menuTrans);
         }
 
-        // Retrieve assigned RoleMenus for the user's roles
         var activeRoleIds = roles.Select(r => r.Id).ToList();
         var assignedRoleMenus = await _menuRepository.GetRoleMenusByRoleIdsAsync(activeRoleIds, cancellationToken);
 
-        // Group actions by menu across roles
         var menuActionMap = new Dictionary<Guid, HashSet<string>>();
         var distinctMenus = new Dictionary<Guid, ImMenu>();
 
@@ -299,7 +294,6 @@ public class MenuService : IMenuService
             }
         }
 
-        // Include parent menus if a child is visible
         var menusToInclude = distinctMenus.Values.ToList();
         var parentIdsToFetch = menusToInclude
             .Where(m => m.ParentId.HasValue && !distinctMenus.ContainsKey(m.ParentId.Value))
@@ -415,7 +409,6 @@ public class MenuService : IMenuService
         return true;
     }
 
-    #region Helper Tree Builders
 
     private MenuResponse MapToResponse(
         ImMenu menu,
@@ -587,5 +580,4 @@ public class MenuService : IMenuService
             .ToList();
     }
 
-    #endregion
 }

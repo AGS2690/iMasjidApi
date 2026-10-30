@@ -54,7 +54,6 @@ public class AppDbContext : DbContext, IAppDbContext
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
 
-        // Map PostgreSQL View
         modelBuilder.Entity<VwUserEffectivePermission>(entity =>
         {
             entity.HasNoKey();
@@ -63,7 +62,6 @@ public class AppDbContext : DbContext, IAppDbContext
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
-            // Database-level default gen_random_uuid() for all Guid primary keys
             var idProperty = entityType.FindProperty("Id");
             if (idProperty != null && idProperty.ClrType == typeof(Guid))
             {
@@ -71,7 +69,6 @@ public class AppDbContext : DbContext, IAppDbContext
                 idProperty.ValueGenerated = Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd;
             }
 
-            // Global query filter: Automatically filter out soft-deleted records across all queries
             if (typeof(ISoftDeletable).IsAssignableFrom(entityType.ClrType))
             {
                 var parameter = Expression.Parameter(entityType.ClrType, "e");
@@ -97,7 +94,6 @@ public class AppDbContext : DbContext, IAppDbContext
                     break;
 
                 case EntityState.Modified:
-                    // Auto-populate DeletedOn and DeletedBy when soft-deleted
                     if (entry.Entity.IsDeleted && entry.Property(p => p.IsDeleted).IsModified)
                     {
                         entry.Entity.DeletedOn = now;

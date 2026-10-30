@@ -1,4 +1,4 @@
-using iMasjid.Api.Extensions;
+﻿using iMasjid.Api.Extensions;
 using iMasjid.Application;
 using iMasjid.Infrastructure;
 using iMasjid.Infrastructure.Persistence.Seed;
@@ -6,7 +6,11 @@ using iMasjid.Jobs;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add Clean Architecture Layers
+if (builder.Environment.IsDevelopment())
+{
+    builder.Configuration.AddJsonFile("Secrets.Local.Json", optional: true, reloadOnChange: false);
+}
+
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddBackgroundJobs(builder.Configuration);
@@ -14,7 +18,6 @@ builder.Services.AddApiServices(builder.Configuration);
 
 var app = builder.Build();
 
-// Seed Database (Roles, Permissions, Default SuperAdmin)
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
@@ -29,10 +32,8 @@ if (app.Environment.IsDevelopment())
     }
 }
 
-// Configure Middleware Pipeline
 app.UseApiMiddlewarePipeline(app.Environment);
 
 app.Run();
 
-// Required for Integration Testing with WebApplicationFactory<Program>
 public partial class Program { }

@@ -1,4 +1,4 @@
-﻿using System.Linq.Expressions;
+using System.Linq.Expressions;
 using AutoMapper;
 using iMasjid.Application.Common.Models;
 using iMasjid.Application.DTOs.Requests.Users;
@@ -109,7 +109,6 @@ public class UserService : IUserService
 
         var userIds = pagedUsers.Items.Select(u => u.Id).ToList();
 
-        // Batch fetch all roles for the returned users in a single query
         var rolesByUserId = await _userRepository.GetRolesForUsersAsync(userIds, cancellationToken);
 
         var userResponses = pagedUsers.Items.Select(user =>
@@ -146,7 +145,6 @@ public class UserService : IUserService
             CreatedBy = _currentUserService.UserName
         };
 
-        // Support both RoleIds (GUIDs) and Roles (Names or GUID strings)
         var roleGuids = new HashSet<Guid>();
         var roleNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -167,7 +165,6 @@ public class UserService : IUserService
             }
         }
 
-        // If no roles specified at all, default to User role
         if (roleGuids.Count == 0 && roleNames.Count == 0)
         {
             roleNames.Add(RolesConstants.User);
@@ -371,7 +368,6 @@ public class UserService : IUserService
             }
         }, cancellationToken);
 
-        // Invalidate cached permissions
         await _cacheService.RemoveAsync(CacheKeys.UserPermissions(id), cancellationToken);
 
         await _auditService.LogAsync(
@@ -402,10 +398,6 @@ public class UserService : IUserService
             cancellationToken);
     }
 
-    /// <summary>
-    /// Maps <see cref="ImUser"/> to <see cref="UserResponse"/> via AutoMapper,
-    /// injecting the separately-fetched <paramref name="roles"/> list through the context.
-    /// </summary>
     private UserResponse MapToUserResponse(ImUser user, IReadOnlyList<string> roles)
         => _mapper.Map<UserResponse>(user, opts => opts.Items["Roles"] = roles);
 }

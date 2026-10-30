@@ -19,8 +19,5 @@ public class RateLimitRule
 
 public class EndpointRateLimitRule : RateLimitRule
 {
-    /// <summary>
-    /// Format: "METHOD:/path/pattern*" e.g. "POST:/api/auth/*", "GET:/api/users/*", or "/api/*"
-    /// </summary>
     public string Endpoint { get; set; } = string.Empty;
 }

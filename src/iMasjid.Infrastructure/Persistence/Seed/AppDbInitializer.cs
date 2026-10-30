@@ -17,14 +17,11 @@ public static class AppDbInitializer
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<AppDbContext>>();
         try
         {
-            // In DB-First approach, tables are created via SQL scripts in PostgreSQL / relational databases.
-            // EnsureCreatedAsync is only invoked for InMemory / non-relational database providers.
             if (!context.Database.IsRelational())
             {
                 await context.Database.EnsureCreatedAsync();
             }
 
-            // 1. Seed Permissions
             var allPermissionCodes = Permissions.GetAllPermissions();
             var existingPermissions = await context.ImPermissions.IgnoreQueryFilters().ToListAsync();
 
@@ -58,7 +55,6 @@ public static class AppDbInitializer
                 logger.LogInformation("Seeded {Count} new permissions.", newPermissions.Count);
             }
 
-            // 2. Seed Roles
             var existingRoles = await context.ImRoles.IgnoreQueryFilters().ToListAsync();
             var rolesToSeed = new[]
             {
@@ -96,14 +92,12 @@ public static class AppDbInitializer
 
             await context.SaveChangesAsync();
 
-            // 3. Seed Role-Permissions
             var superAdminRole = existingRoles.FirstOrDefault(r => r.NormalizedName == "SUPER ADMIN" || r.NormalizedName == "SUPERADMIN") ?? existingRoles.First();
             var adminRole = existingRoles.FirstOrDefault(r => r.NormalizedName == "MOSQUE ADMIN" || r.NormalizedName == "ADMIN" || r.NormalizedName == "MINISTRY ADMIN");
             var userRole = existingRoles.FirstOrDefault(r => r.NormalizedName == "MEMBER" || r.NormalizedName == "USER");
 
             var existingRolePermissions = await context.ImRolePermissions.ToListAsync();
 
-            // SuperAdmin gets all permissions
             foreach (var perm in existingPermissions)
             {
                 if (!existingRolePermissions.Any(rp => rp.RoleId == superAdminRole.Id && rp.PermissionId == perm.Id))
@@ -117,7 +111,6 @@ public static class AppDbInitializer
                 }
             }
 
-            // Admin gets user, role, and settings permissions
             if (adminRole != null)
             {
                 var adminPermCodes = new[]
@@ -142,7 +135,6 @@ public static class AppDbInitializer
                 }
             }
 
-            // User gets basic view permissions
             if (userRole != null)
             {
                 var userPermCodes = new[]
@@ -167,7 +159,6 @@ public static class AppDbInitializer
 
             await context.SaveChangesAsync();
 
-            // 4. Seed Default SuperAdmin User
             var superAdminEmail = "superadmin@imasjid.com";
             var existingUser = await context.ImUsers.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.UserName == "superadmin" || u.Email == superAdminEmail);
 
@@ -189,7 +180,6 @@ public static class AppDbInitializer
                 context.ImUsers.Add(adminUser);
                 await context.SaveChangesAsync();
 
-                // Assign SuperAdmin Role
                 context.ImUserRoles.Add(new ImUserRole
                 {
                     UserId = adminUser.Id,
@@ -207,7 +197,6 @@ public static class AppDbInitializer
                 logger.LogInformation("Updated SuperAdmin email to: {Email}", superAdminEmail);
             }
 
-            // 5. Seed Default Application Settings
             var defaultSettings = new[]
             {
                 (Key: "Security.PasswordExpiryDays", Value: "90", Description: "Days after which user password expires", Module: "Security"),
@@ -233,7 +222,6 @@ public static class AppDbInitializer
 
             await context.SaveChangesAsync();
 
-            // 6. Seed Supported Locales
             if (context.Database.IsRelational())
             {
                 await context.Database.ExecuteSqlRawAsync(@"
@@ -342,7 +330,6 @@ public static class AppDbInitializer
 
             await context.SaveChangesAsync();
 
-            // 7. Seed Dynamic Translations (Menus, BusinessActions, Permissions)
             if (context.Database.IsRelational())
             {
                 await context.Database.ExecuteSqlRawAsync(@"
@@ -381,7 +368,6 @@ public static class AppDbInitializer
         {
             var existingTranslations = await context.ImTranslations.IgnoreQueryFilters().ToListAsync();
 
-            // 7.1 Menus Translations Map
             var allMenus = await context.ImMenus.IgnoreQueryFilters().ToListAsync();
             var menuTranslationDefs = new Dictionary<string, (string IdName, string IdDesc, string ArName, string ArDesc)>
             {
@@ -402,7 +388,6 @@ public static class AppDbInitializer
                 if (!menuTranslationDefs.TryGetValue(key, out var def))
                     continue;
 
-                // id-ID
                 if (!existingTranslations.Any(t => t.EntityType == "Menu" && t.EntityId == menu.Id && t.CultureCode == "id-ID"))
                 {
                     context.ImTranslations.Add(new ImTranslation
@@ -415,7 +400,6 @@ public static class AppDbInitializer
                         CreatedBy = "Seeder"
                     });
                 }
-                // ar-SA
                 if (!existingTranslations.Any(t => t.EntityType == "Menu" && t.EntityId == menu.Id && t.CultureCode == "ar-SA"))
                 {
                     context.ImTranslations.Add(new ImTranslation
@@ -430,7 +414,6 @@ public static class AppDbInitializer
                 }
             }
 
-            // 7.2 Business Actions Translations Map
             var allActions = await context.ImBusinessActions.IgnoreQueryFilters().ToListAsync();
             var actionTranslationDefs = new Dictionary<string, (string IdName, string IdDesc, string ArName, string ArDesc)>
             {
@@ -447,7 +430,6 @@ public static class AppDbInitializer
                 if (!actionTranslationDefs.TryGetValue(action.Code.ToUpperInvariant(), out var def))
                     continue;
 
-                // id-ID
                 if (!existingTranslations.Any(t => t.EntityType == "BusinessAction" && t.EntityId == action.Id && t.CultureCode == "id-ID"))
                 {
                     context.ImTranslations.Add(new ImTranslation
@@ -460,7 +442,6 @@ public static class AppDbInitializer
                         CreatedBy = "Seeder"
                     });
                 }
-                // ar-SA
                 if (!existingTranslations.Any(t => t.EntityType == "BusinessAction" && t.EntityId == action.Id && t.CultureCode == "ar-SA"))
                 {
                     context.ImTranslations.Add(new ImTranslation
@@ -475,7 +456,6 @@ public static class AppDbInitializer
                 }
             }
 
-            // 7.3 Permissions Translations Map
             var allPermissions = await context.ImPermissions.IgnoreQueryFilters().ToListAsync();
             var permTranslationDefs = new Dictionary<string, (string IdName, string IdDesc, string ArName, string ArDesc)>
             {
@@ -508,7 +488,6 @@ public static class AppDbInitializer
                 if (!permTranslationDefs.TryGetValue(perm.Code, out var def))
                     continue;
 
-                // id-ID
                 if (!existingTranslations.Any(t => t.EntityType == "Permission" && t.EntityId == perm.Id && t.CultureCode == "id-ID"))
                 {
                     context.ImTranslations.Add(new ImTranslation
@@ -521,7 +500,6 @@ public static class AppDbInitializer
                         CreatedBy = "Seeder"
                     });
                 }
-                // ar-SA
                 if (!existingTranslations.Any(t => t.EntityType == "Permission" && t.EntityId == perm.Id && t.CultureCode == "ar-SA"))
                 {
                     context.ImTranslations.Add(new ImTranslation

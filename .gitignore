@@ -1,4 +1,4 @@
-# =============================================================
+﻿# =============================================================
 # .gitignore for ASP.NET Core / Clean Architecture Project
 # =============================================================
 
@@ -7,7 +7,7 @@
 # ---------------------------------------------------------------
 
 # Local appsettings with real secrets (DB passwords, JWT keys, SMTP)
-src/**/appsettings.Development.json
+src/**/Secrets.Local.Json
 src/**/appsettings.Production.json
 src/**/appsettings.Staging.json
 
