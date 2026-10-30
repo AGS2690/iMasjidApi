@@ -1,6 +1,7 @@
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 using iMasjid.Application.Common.Models;
+using iMasjid.Domain.Common;
 using iMasjid.Application.Interfaces.Persistence;
 using iMasjid.Infrastructure.Persistence;
 
@@ -113,11 +114,21 @@ public class GenericRepository<T> : IGenericRepository<T> where T : class
 
     public virtual void Delete(T entity)
     {
+        if (entity is ISoftDeletable softDeletable)
+        {
+            softDeletable.IsDeleted = true;
+            _dbSet.Update(entity);
+            return;
+        }
+
         _dbSet.Remove(entity);
     }
 
     public virtual void DeleteRange(IEnumerable<T> entities)
     {
-        _dbSet.RemoveRange(entities);
+        foreach (var entity in entities)
+        {
+            Delete(entity);
+        }
     }
 }

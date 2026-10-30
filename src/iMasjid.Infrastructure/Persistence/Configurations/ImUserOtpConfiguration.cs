@@ -14,7 +14,7 @@ public class ImUserOtpConfiguration : IEntityTypeConfiguration<ImUserOtp>
 
         builder.Property(o => o.OtpCode)
             .IsRequired()
-            .HasMaxLength(10);
+            .HasMaxLength(64);
 
         builder.Property(o => o.Purpose)
             .IsRequired()

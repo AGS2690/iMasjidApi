@@ -1,0 +1,49 @@
+﻿name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    env:
+      TEST_DATABASE_CONNECTION: ${{ secrets.TEST_DATABASE_CONNECTION }}
+      JWT_SECRET_KEY: ${{ secrets.TEST_JWT_SECRET_KEY }}
+      OTP_HASH_KEY: ${{ secrets.TEST_OTP_HASH_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore iMasjid.sln
+
+      - name: Build
+        run: dotnet build iMasjid.sln --no-restore --configuration Release --warnaserror
+
+      - name: Format check
+        run: dotnet format iMasjid.sln --verify-no-changes --no-restore
+
+      - name: Dependency audit
+        run: dotnet list iMasjid.sln package --vulnerable --include-transitive
+
+      - name: Run configured integration tests
+        if: env.TEST_DATABASE_CONNECTION != ''
+        env:
+          ConnectionStrings__DefaultConnection: ${{ secrets.TEST_DATABASE_CONNECTION }}
+          Jwt__SecretKey: ${{ secrets.TEST_JWT_SECRET_KEY }}
+          Security__OtpHashKey: ${{ secrets.TEST_OTP_HASH_KEY }}
+        run: dotnet test iMasjid.sln --no-build --configuration Release --logger "trx;LogFileName=test-results.trx"
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -33,11 +33,6 @@ public abstract class BaseApiController : ControllerBase
 
     protected string? GetIpAddress()
     {
-        if (Request.Headers.TryGetValue("X-Forwarded-For", out var forwardedFor) && !string.IsNullOrWhiteSpace(forwardedFor))
-        {
-            return forwardedFor.ToString().Split(',')[0].Trim();
-        }
-
         return HttpContext.Connection.RemoteIpAddress?.ToString();
     }
 

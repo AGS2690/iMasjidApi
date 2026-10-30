@@ -8,5 +8,5 @@ public static class CacheKeys
 
     public static string UserPermissions(Guid userId) => $"{UserPermissionsPrefix}{userId}";
     public static string RolePermissions(Guid roleId) => $"{RolePermissionsPrefix}{roleId}";
-    public static string Setting(string key) => $"setting:{key.ToLowerInvariant()}";
+    public static string Setting(string key) => $"setting:{key.Trim().ToLowerInvariant()}";
 }

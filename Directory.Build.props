@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+	<EnableNETAnalyzers>true</EnableNETAnalyzers>
+	<AnalysisMode>Recommended</AnalysisMode>
+	<EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+	<NuGetAudit>true</NuGetAudit>
+	<NuGetAuditMode>all</NuGetAuditMode>
+	<Deterministic>true</Deterministic>
+  </PropertyGroup>
+</Project>

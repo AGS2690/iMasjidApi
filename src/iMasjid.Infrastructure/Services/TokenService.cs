@@ -1,4 +1,4 @@
-using System.IdentityModel.Tokens.Jwt;
+﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
@@ -80,7 +80,7 @@ public class TokenService : ITokenService
         var refreshTokenEntity = new ImRefreshToken
         {
             UserId = user.Id,
-            Token = refreshToken,
+            Token = HashToken(refreshToken),
             JwtId = jwtId,
             IsUsed = false,
             IsRevoked = false,
@@ -116,10 +116,11 @@ public class TokenService : ITokenService
             throw new UnauthorizedException("Invalid user claims in token.");
 
         var storedToken = await _context.ImRefreshTokens
+            .AsNoTracking()
             .Include(r => r.User)
                 .ThenInclude(u => u.ImUserRoles)
                     .ThenInclude(ur => ur.Role)
-            .FirstOrDefaultAsync(r => r.Token == refreshToken, cancellationToken);
+            .FirstOrDefaultAsync(r => r.Token == HashToken(refreshToken), cancellationToken);
 
         if (storedToken == null)
             throw new UnauthorizedException("Refresh token not found.");
@@ -137,19 +138,20 @@ public class TokenService : ITokenService
         if (storedToken.IsExpired)
             throw new UnauthorizedException("Refresh token has expired.");
 
-        if (storedToken.UserId != userId)
+        if (storedToken.UserId != userId || !storedToken.User.IsActive || storedToken.User.IsDeleted)
             throw new UnauthorizedException("Token does not belong to this user.");
 
         var now = _dateTimeProvider.UtcNow;
         var newRefreshToken = GenerateSecureRefreshToken();
 
-        // Mark old token as used and record replacement
-        storedToken.IsUsed = true;
-        storedToken.ReplacedByToken = newRefreshToken;
-
-        var roles = storedToken.User.ImUserRoles.Select(ur => ur.Role.Name).ToList();
+        var roles = storedToken.User.ImUserRoles
+            .Where(ur => ur.Role.IsActive && !ur.Role.IsDeleted)
+            .Select(ur => ur.Role.Name)
+            .ToList();
         var allPermissions = await _context.ImRolePermissions
-            .Where(rp => storedToken.User.ImUserRoles.Select(ur => ur.RoleId).Contains(rp.RoleId))
+            .Where(rp => storedToken.User.ImUserRoles.Select(ur => ur.RoleId).Contains(rp.RoleId) &&
+                         rp.Role.IsActive && !rp.Role.IsDeleted &&
+                         rp.Permission.IsActive && !rp.Permission.IsDeleted)
             .Select(rp => rp.Permission.Code)
             .Distinct()
             .ToListAsync(cancellationToken);
@@ -193,10 +195,20 @@ public class TokenService : ITokenService
         var securityToken = tokenHandler.CreateToken(tokenDescriptor);
         var newAccessToken = tokenHandler.WriteToken(securityToken);
 
+        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        var consumed = await _context.ImRefreshTokens
+            .Where(r => r.Id == storedToken.Id && !r.IsUsed && !r.IsRevoked && r.ExpiresOn > now)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(r => r.IsUsed, true)
+                .SetProperty(r => r.ReplacedByToken, HashToken(newRefreshToken)), cancellationToken);
+
+        if (consumed != 1)
+            throw new UnauthorizedException("Refresh token has already been used.");
+
         var newRefreshTokenEntity = new ImRefreshToken
         {
             UserId = storedToken.UserId,
-            Token = newRefreshToken,
+            Token = HashToken(newRefreshToken),
             JwtId = jwtId,
             IsUsed = false,
             IsRevoked = false,
@@ -207,6 +219,7 @@ public class TokenService : ITokenService
 
         await _context.ImRefreshTokens.AddAsync(newRefreshTokenEntity, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return new GeneratedToken(
             newAccessToken,
@@ -217,33 +230,25 @@ public class TokenService : ITokenService
 
     public async Task<bool> RevokeTokenAsync(string refreshToken, string? ipAddress = null, CancellationToken cancellationToken = default)
     {
-        var token = await _context.ImRefreshTokens.FirstOrDefaultAsync(r => r.Token == refreshToken, cancellationToken);
-        if (token == null || !token.IsActive)
-            return false;
+        var revoked = await _context.ImRefreshTokens
+            .Where(r => r.Token == HashToken(refreshToken) && !r.IsRevoked && !r.IsUsed && r.ExpiresOn > _dateTimeProvider.UtcNow)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(r => r.IsRevoked, true)
+                .SetProperty(r => r.RevokedOn, _dateTimeProvider.UtcNow)
+                .SetProperty(r => r.RevokedByIp, ipAddress), cancellationToken);
 
-        token.IsRevoked = true;
-        token.RevokedOn = _dateTimeProvider.UtcNow;
-        token.RevokedByIp = ipAddress;
-
-        await _context.SaveChangesAsync(cancellationToken);
-        return true;
+        return revoked == 1;
     }
 
     public async Task RevokeAllUserTokensAsync(Guid userId, string? ipAddress = null, CancellationToken cancellationToken = default)
     {
-        var activeTokens = await _context.ImRefreshTokens
-            .Where(r => r.UserId == userId && !r.IsRevoked && !r.IsUsed)
-            .ToListAsync(cancellationToken);
-
         var now = _dateTimeProvider.UtcNow;
-        foreach (var token in activeTokens)
-        {
-            token.IsRevoked = true;
-            token.RevokedOn = now;
-            token.RevokedByIp = ipAddress;
-        }
-
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.ImRefreshTokens
+            .Where(r => r.UserId == userId && !r.IsRevoked && !r.IsUsed)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(r => r.IsRevoked, true)
+                .SetProperty(r => r.RevokedOn, now)
+                .SetProperty(r => r.RevokedByIp, ipAddress), cancellationToken);
     }
 
     public ClaimsPrincipal? GetPrincipalFromExpiredToken(string token)
@@ -285,4 +290,7 @@ public class TokenService : ITokenService
             .Replace("/", "_")
             .TrimEnd('=');
     }
+
+    private static string HashToken(string token)
+        => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
 }

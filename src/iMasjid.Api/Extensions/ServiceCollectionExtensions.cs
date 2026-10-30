@@ -1,5 +1,7 @@
-using System.Threading.RateLimiting;
+﻿using System.Threading.RateLimiting;
+using System.Net;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.OpenApi.Models;
@@ -36,6 +38,21 @@ public static class ServiceCollectionExtensions
                     return new BadRequestObjectResult(response);
                 };
             });
+
+        services.Configure<ForwardedHeadersOptions>(options =>
+        {
+            options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+            options.KnownProxies.Clear();
+            options.KnownNetworks.Clear();
+
+            foreach (var value in configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? Array.Empty<string>())
+            {
+                if (!IPAddress.TryParse(value, out var address))
+                    throw new InvalidOperationException($"ForwardedHeaders:KnownProxies contains invalid IP address '{value}'.");
+
+                options.KnownProxies.Add(address);
+            }
+        });
 
         // 2. Permission-based Authorization
         services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
@@ -164,16 +181,7 @@ public static class ServiceCollectionExtensions
     }
 
     private static string GetClientIp(HttpContext httpContext, string realIpHeader)
-    {
-        if (!string.IsNullOrWhiteSpace(realIpHeader) &&
-            httpContext.Request.Headers.TryGetValue(realIpHeader, out var headerValue) &&
-            !string.IsNullOrWhiteSpace(headerValue))
-        {
-            return headerValue.ToString().Split(',')[0].Trim();
-        }
-
-        return httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown_client";
-    }
+        => httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown_client";
 
     private static bool MatchesEndpointRule(string ruleEndpoint, string httpMethod, string requestPath)
     {

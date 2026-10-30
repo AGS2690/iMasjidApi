@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using iMasjid.Application.Common.Models;
 using iMasjid.Application.Interfaces.Persistence;
 using iMasjid.Application.Interfaces.Services;
@@ -13,11 +14,16 @@ public class AuditService : IAuditService
 {
     private readonly AppDbContext _context;
     private readonly IDateTimeProvider _dateTimeProvider;
+    private readonly IServiceScopeFactory _scopeFactory;
 
-    public AuditService(AppDbContext context, IDateTimeProvider dateTimeProvider)
+    public AuditService(
+        AppDbContext context,
+        IDateTimeProvider dateTimeProvider,
+        IServiceScopeFactory scopeFactory)
     {
         _context = context;
         _dateTimeProvider = dateTimeProvider;
+        _scopeFactory = scopeFactory;
     }
 
     public async Task LogAsync(
@@ -44,8 +50,10 @@ public class AuditService : IAuditService
             CreatedOn = _dateTimeProvider.UtcNow
         };
 
-        await _context.ImAuditLogs.AddAsync(audit, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
+        using var scope = _scopeFactory.CreateScope();
+        var auditContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await auditContext.ImAuditLogs.AddAsync(audit, cancellationToken);
+        await auditContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<PagedResponse<AuditLogRecord>> GetAuditLogsPagedAsync(

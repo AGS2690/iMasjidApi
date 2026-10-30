@@ -126,8 +126,8 @@ public class EmailService : IEmailService
         </div>";
 
         _logger.LogInformation(
-            "[OTP GENERATED] User: '{UserName}', Email: '{ToEmail}', Purpose: '{Purpose}', OTP: '{OtpCode}', Expires in: {Minutes} min",
-            userName, toEmail, purpose, otpCode, minutes);
+            "OTP email generated for user '{UserName}' and purpose '{Purpose}', expires in {Minutes} minutes",
+            userName, purpose, minutes);
 
         await SendEmailAsync(toEmail, subject, body, cancellationToken);
     }

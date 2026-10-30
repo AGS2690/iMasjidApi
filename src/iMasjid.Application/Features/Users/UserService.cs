@@ -1,4 +1,4 @@
-using System.Linq.Expressions;
+﻿using System.Linq.Expressions;
 using AutoMapper;
 using iMasjid.Application.Common.Models;
 using iMasjid.Application.DTOs.Requests.Users;
@@ -26,6 +26,7 @@ public class UserService : IUserService
     private readonly ICurrentUserService _currentUserService;
     private readonly IAuditService _auditService;
     private readonly IMapper _mapper;
+    private readonly ITokenService _tokenService;
 
     public UserService(
         IUserRepository userRepository,
@@ -37,7 +38,8 @@ public class UserService : IUserService
         ICacheService cacheService,
         ICurrentUserService currentUserService,
         IAuditService auditService,
-        IMapper mapper)
+        IMapper mapper,
+        ITokenService tokenService)
     {
         _userRepository = userRepository;
         _roleRepository = roleRepository;
@@ -49,6 +51,7 @@ public class UserService : IUserService
         _currentUserService = currentUserService;
         _auditService = auditService;
         _mapper = mapper;
+        _tokenService = tokenService;
     }
 
     public async Task<UserResponse> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
@@ -258,6 +261,7 @@ public class UserService : IUserService
         user.IsDeleted = true;
 
         _userRepository.Update(user);
+        await _tokenService.RevokeAllUserTokensAsync(id, _currentUserService.IpAddress, cancellationToken);
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await _cacheService.RemoveAsync(CacheKeys.UserPermissions(id), cancellationToken);
@@ -286,6 +290,10 @@ public class UserService : IUserService
         user.ModifiedBy = _currentUserService.UserName;
 
         _userRepository.Update(user);
+        if (!user.IsActive)
+        {
+            await _tokenService.RevokeAllUserTokensAsync(id, _currentUserService.IpAddress, cancellationToken);
+        }
         await _unitOfWork.SaveChangesAsync(cancellationToken);
 
         await _auditService.LogAsync(

@@ -8,6 +8,7 @@ using iMasjid.Domain.Constants;
 using iMasjid.Domain.Entities;
 using iMasjid.Domain.Enums;
 using iMasjid.Domain.Exceptions;
+using RolesConstants = iMasjid.Domain.Constants.Roles;
 
 namespace iMasjid.Application.Features.Auth;
 
@@ -218,13 +219,14 @@ public class AuthService : IAuthService
         }
 
         var purpose = string.IsNullOrWhiteSpace(request.Purpose) ? OtpPurposes.Login : request.Purpose.Trim();
-        var isValid = await _otpService.ValidateOtpAsync(user.Id, request.Otp, purpose, cancellationToken);
-
-        // Fallback: Check if purpose was Login but user required TwoFactor (or vice versa)
-        if (!isValid && purpose == OtpPurposes.Login && user.TwoFactorEnabled)
+        var expectedPurpose = user.TwoFactorEnabled ? OtpPurposes.TwoFactor : OtpPurposes.Login;
+        if (!string.Equals(purpose, expectedPurpose, StringComparison.OrdinalIgnoreCase))
         {
-            isValid = await _otpService.ValidateOtpAsync(user.Id, request.Otp, OtpPurposes.TwoFactor, cancellationToken);
+            await RecordLoginHistoryAsync(user.Id, identifier, ipAddress, false, "Invalid OTP purpose.", cancellationToken);
+            throw new UnauthorizedException("The OTP code provided is invalid or has expired.");
         }
+
+        var isValid = await _otpService.ValidateOtpAsync(user.Id, request.Otp, purpose, cancellationToken);
 
         if (!isValid)
         {
@@ -237,6 +239,12 @@ public class AuthService : IAuthService
 
     public async Task<bool> ToggleTwoFactorAsync(Guid userId, bool enable, CancellationToken cancellationToken = default)
     {
+        if (_currentUserService.UserId != userId &&
+            !_currentUserService.Roles.Contains(RolesConstants.SuperAdmin, StringComparer.OrdinalIgnoreCase))
+        {
+            throw new ForbiddenException("You are not authorized to change two-factor authentication for this user.");
+        }
+
         var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
         if (user == null)
             throw new NotFoundException(nameof(ImUser), userId);

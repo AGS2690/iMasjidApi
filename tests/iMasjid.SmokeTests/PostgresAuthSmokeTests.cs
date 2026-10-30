@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using iMasjid.Application.DTOs.Requests.Auth;
 using iMasjid.Application.Interfaces.Features;
@@ -108,6 +108,7 @@ public class PostgresAuthSmokeTests : IClassFixture<TestFixture>
         using (var scope = _fixture.CreateScope())
         {
             var authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var loginResponse = await authService.LoginAsync(new LoginRequest
             {
                 UserNameOrEmail = testUserName,
@@ -149,9 +150,10 @@ public class PostgresAuthSmokeTests : IClassFixture<TestFixture>
         // 2. Enable Two-Factor Authentication
         using (var scope = _fixture.CreateScope())
         {
-            var authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
-            var toggleResult = await authService.ToggleTwoFactorAsync(userId, true);
-            Assert.True(toggleResult);
+            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var dbUser = await dbContext.ImUsers.FirstAsync(u => u.Id == userId);
+            dbUser.TwoFactorEnabled = true;
+            await dbContext.SaveChangesAsync();
         }
 
         // Verify in DB that TwoFactorEnabled is now true
@@ -178,8 +180,8 @@ public class PostgresAuthSmokeTests : IClassFixture<TestFixture>
             Assert.False(string.IsNullOrEmpty(loginResponse.MaskedEmail));
         }
 
-        // 4. Read the generated OTP from PostgreSQL IM_UserOtps table
-        string otpCode;
+        // 4. Capture the generated OTP through the test email service
+        var otpCode = _fixture.GetOtp(testEmail, OtpPurposes.TwoFactor);
         Guid otpId;
         using (var scope = _fixture.CreateScope())
         {
@@ -190,8 +192,8 @@ public class PostgresAuthSmokeTests : IClassFixture<TestFixture>
                 .FirstOrDefaultAsync(o => o.UserId == userId && o.Purpose == OtpPurposes.TwoFactor && !o.IsUsed);
 
             Assert.NotNull(otpRecord);
-            Assert.Equal(6, otpRecord.OtpCode.Length);
-            otpCode = otpRecord.OtpCode;
+            Assert.Equal(64, otpRecord.OtpCode.Length);
+            Assert.NotEqual(otpCode, otpRecord.OtpCode);
             otpId = otpRecord.Id;
         }
 
@@ -210,7 +212,22 @@ public class PostgresAuthSmokeTests : IClassFixture<TestFixture>
             });
         }
 
-        // 6. Verifying with correct OTP should succeed and return JWT tokens
+        // 6. An OTP cannot be used for a different authentication purpose
+        using (var scope = _fixture.CreateScope())
+        {
+            var authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
+            await Assert.ThrowsAsync<UnauthorizedException>(async () =>
+            {
+                await authService.VerifyOtpAsync(new VerifyOtpRequest
+                {
+                    UserNameOrEmail = testUserName,
+                    Otp = otpCode,
+                    Purpose = OtpPurposes.Login
+                }, "127.0.0.1");
+            });
+        }
+
+        // 7. Verifying with correct OTP should succeed and return JWT tokens
         using (var scope = _fixture.CreateScope())
         {
             var authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
@@ -227,7 +244,7 @@ public class PostgresAuthSmokeTests : IClassFixture<TestFixture>
             Assert.False(string.IsNullOrWhiteSpace(verifyResponse.RefreshToken));
         }
 
-        // 7. Verify OTP was marked as used in PostgreSQL
+        // 8. Verify OTP was marked as used in PostgreSQL
         using (var scope = _fixture.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -277,8 +294,8 @@ public class PostgresAuthSmokeTests : IClassFixture<TestFixture>
             Assert.False(string.IsNullOrEmpty(sendOtpResponse.MaskedEmail));
         }
 
-        // 3. Read OTP from PostgreSQL
-        string otpCode;
+        // 3. Capture OTP through the test email service
+        var otpCode = _fixture.GetOtp(testEmail, OtpPurposes.Login);
         using (var scope = _fixture.CreateScope())
         {
             var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -288,7 +305,7 @@ public class PostgresAuthSmokeTests : IClassFixture<TestFixture>
                 .FirstOrDefaultAsync(o => o.UserId == userId && o.Purpose == OtpPurposes.Login && !o.IsUsed);
 
             Assert.NotNull(otpRecord);
-            otpCode = otpRecord.OtpCode;
+            Assert.Equal(64, otpRecord.OtpCode.Length);
         }
 
         // 4. Complete passwordless login with OTP
@@ -318,6 +335,7 @@ public class PostgresAuthSmokeTests : IClassFixture<TestFixture>
         using (var scope = _fixture.CreateScope())
         {
             var authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
+            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var loginResponse = await authService.LoginAsync(new LoginRequest
             {
                 UserNameOrEmail = "superadmin",
@@ -326,6 +344,14 @@ public class PostgresAuthSmokeTests : IClassFixture<TestFixture>
 
             accessToken = loginResponse.AccessToken;
             refreshToken = loginResponse.RefreshToken;
+
+            var user = await dbContext.ImUsers.AsNoTracking().FirstAsync(u => u.UserName == "superadmin");
+            var storedToken = await dbContext.ImRefreshTokens
+                .AsNoTracking()
+                .OrderByDescending(t => t.CreatedOn)
+                .FirstAsync(t => t.UserId == user.Id);
+            Assert.Equal(64, storedToken.Token.Length);
+            Assert.NotEqual(refreshToken, storedToken.Token);
         }
 
         // 2. Refresh token

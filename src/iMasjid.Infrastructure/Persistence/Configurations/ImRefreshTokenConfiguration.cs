@@ -14,7 +14,7 @@ public class ImRefreshTokenConfiguration : IEntityTypeConfiguration<ImRefreshTok
 
         builder.Property(rt => rt.Token)
             .IsRequired()
-            .HasMaxLength(256);
+            .HasMaxLength(128);
 
         builder.Property(rt => rt.JwtId)
             .IsRequired()
@@ -27,7 +27,7 @@ public class ImRefreshTokenConfiguration : IEntityTypeConfiguration<ImRefreshTok
             .HasMaxLength(50);
 
         builder.Property(rt => rt.ReplacedByToken)
-            .HasMaxLength(256);
+            .HasMaxLength(128);
 
         builder.HasOne(rt => rt.User)
             .WithMany(u => u.ImRefreshTokens)

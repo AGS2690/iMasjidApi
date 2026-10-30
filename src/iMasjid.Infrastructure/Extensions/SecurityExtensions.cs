@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,7 +14,7 @@ public static class SecurityExtensions
     {
         var jwtSection = configuration.GetSection(JwtSettings.SectionName);
         var jwtSettings = new JwtSettings();
-        
+
         jwtSettings.SecretKey = jwtSection["SecretKey"] ?? string.Empty;
         jwtSettings.Issuer = jwtSection["Issuer"] ?? string.Empty;
         jwtSettings.AccessTokenExpirationMinutes = int.TryParse(jwtSection["AccessTokenExpirationMinutes"], out var accExp) ? accExp : 15;
@@ -33,6 +33,22 @@ public static class SecurityExtensions
                 jwtSettings.Audiences = new List<string> { jwtSettings.Audience };
         }
 
+        if (string.IsNullOrWhiteSpace(jwtSettings.SecretKey) || Encoding.UTF8.GetByteCount(jwtSettings.SecretKey) < 32)
+            throw new InvalidOperationException("Jwt:SecretKey must be configured with at least 32 UTF-8 bytes.");
+
+        if (string.IsNullOrWhiteSpace(jwtSettings.Issuer))
+            throw new InvalidOperationException("Jwt:Issuer must be configured.");
+
+        if (jwtSettings.GetValidAudiences().Count == 0)
+            throw new InvalidOperationException("Jwt:Audience must contain at least one configured audience.");
+
+        if (jwtSettings.AccessTokenExpirationMinutes <= 0 || jwtSettings.RefreshTokenExpirationDays <= 0)
+            throw new InvalidOperationException("JWT expiration settings must be greater than zero.");
+
+        var otpHashKey = configuration[$"{SecuritySettings.SectionName}:OtpHashKey"];
+        if (string.IsNullOrWhiteSpace(otpHashKey) || Encoding.UTF8.GetByteCount(otpHashKey) < 32)
+            throw new InvalidOperationException("Security:OtpHashKey must be configured with at least 32 UTF-8 bytes.");
+
         services.Configure<JwtSettings>(options =>
         {
             options.SecretKey = jwtSettings.SecretKey;
@@ -42,6 +58,7 @@ public static class SecurityExtensions
             options.AccessTokenExpirationMinutes = jwtSettings.AccessTokenExpirationMinutes;
             options.RefreshTokenExpirationDays = jwtSettings.RefreshTokenExpirationDays;
         });
+        services.Configure<SecuritySettings>(options => options.OtpHashKey = otpHashKey);
 
         services.AddSingleton<IPasswordHasher, PasswordHasher>();
         services.AddScoped<ITokenService, TokenService>();
@@ -49,8 +66,9 @@ public static class SecurityExtensions
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserService, CurrentUserService>();
 
-        var key = Encoding.UTF8.GetBytes(string.IsNullOrEmpty(jwtSettings.SecretKey) ? "A_Strong_Default_Secret_Key_For_Testing_Only_32_Bytes_Long" : jwtSettings.SecretKey);
+        var key = Encoding.UTF8.GetBytes(jwtSettings.SecretKey);
         var validAudiences = jwtSettings.GetValidAudiences();
+        var environment = configuration["ASPNETCORE_ENVIRONMENT"];
 
         services.AddAuthentication(options =>
         {
@@ -59,8 +77,8 @@ public static class SecurityExtensions
         })
         .AddJwtBearer(options =>
         {
-            options.RequireHttpsMetadata = false;
-            options.SaveToken = true;
+            options.RequireHttpsMetadata = !string.Equals(environment, "Development", StringComparison.OrdinalIgnoreCase);
+            options.SaveToken = false;
             options.TokenValidationParameters = new TokenValidationParameters
             {
                 ValidateIssuerSigningKey = true,

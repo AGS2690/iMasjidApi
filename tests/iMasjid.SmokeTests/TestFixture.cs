@@ -1,3 +1,5 @@
+﻿using System.Collections.Concurrent;
+using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -5,25 +7,22 @@ using iMasjid.Api.Extensions;
 using iMasjid.Application;
 using iMasjid.Infrastructure;
 using iMasjid.Jobs;
+using iMasjid.Application.Interfaces.Services;
 
 namespace iMasjid.SmokeTests;
 
 public class TestFixture : IDisposable
 {
     public IServiceProvider ServiceProvider { get; }
+    private readonly ConcurrentDictionary<string, string> _otpCodes = new();
 
     public TestFixture()
     {
         var inMemorySettings = new Dictionary<string, string?>
         {
-            ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Port=5432;Database=iMasjid;Username=postgres;Password=Ags@2690;",
+            ["ASPNETCORE_ENVIRONMENT"] = "Testing",
             ["ConnectionStrings:Redis"] = "",
-            ["Jwt:SecretKey"] = "8ad3d841d4848f636132e691b4ead9cb590303ee4c486c5d048ef533399401d0d1e8a863638eb777f1a6028491f267e75b12a834e2b003840ec59d86b3b53238",
-            ["Jwt:Issuer"] = "https://localhost:5174/",
-            ["Jwt:Audience:0"] = "http://localhost:5174/",
-            ["Jwt:Audience:1"] = "https://localhost:7199",
-            ["Jwt:AccessTokenExpirationMinutes"] = "15",
-            ["Jwt:RefreshTokenExpirationDays"] = "7",
+            ["Security:OtpHashKey"] = "test-only-otp-hmac-key-change-me-32-bytes",
             ["Email:SmtpServer"] = "smtp.example.com",
             ["Email:Port"] = "587",
             ["Email:SenderEmail"] = "noreply@imasjid.com",
@@ -34,6 +33,8 @@ public class TestFixture : IDisposable
 
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(inMemorySettings)
+            .AddUserSecrets(Assembly.Load("iMasjid.Api"), optional: true)
+            .AddEnvironmentVariables()
             .Build();
 
         var services = new ServiceCollection();
@@ -42,12 +43,18 @@ public class TestFixture : IDisposable
         services.AddApplication();
         services.AddInfrastructure(configuration);
         services.AddBackgroundJobs(configuration);
+        services.AddScoped<IEmailService>(_ => new CapturingEmailService(_otpCodes));
         services.AddApiServices(configuration);
 
         ServiceProvider = services.BuildServiceProvider();
     }
 
     public IServiceScope CreateScope() => ServiceProvider.CreateScope();
+
+    public string GetOtp(string email, string purpose)
+        => _otpCodes.TryGetValue($"{email}|{purpose}", out var otp)
+            ? otp
+            : throw new InvalidOperationException($"No captured OTP exists for {email} and purpose {purpose}.");
 
     public void Dispose()
     {

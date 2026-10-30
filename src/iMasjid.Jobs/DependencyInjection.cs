@@ -1,4 +1,4 @@
-using Hangfire;
+﻿using Hangfire;
 using Hangfire.PostgreSql;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
@@ -22,6 +22,14 @@ public static class DependencyInjection
         // 2. Hangfire settings
         var hangfireSettings = new HangfireSettings();
         configuration.GetSection(HangfireSettings.SectionName).Bind(hangfireSettings);
+
+        if (!string.Equals(configuration["ASPNETCORE_ENVIRONMENT"], "Testing", StringComparison.OrdinalIgnoreCase) &&
+            (string.IsNullOrWhiteSpace(hangfireSettings.DashboardUsername) ||
+             string.IsNullOrWhiteSpace(hangfireSettings.DashboardPassword)))
+        {
+            throw new InvalidOperationException("Hangfire dashboard credentials must be configured through a secret store.");
+        }
+
         services.Configure<HangfireSettings>(configuration.GetSection(HangfireSettings.SectionName));
 
         // 3. Hangfire Server & PostgreSQL Storage
@@ -33,6 +41,7 @@ public static class DependencyInjection
                 .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
                 .UseSimpleAssemblyNameTypeSerializer()
                 .UseRecommendedSerializerSettings()
+                .UseFilter(new AutomaticRetryAttribute { Attempts = 5 })
                 .UsePostgreSqlStorage(
                     c => c.UseNpgsqlConnection(connectionString),
                     new PostgreSqlStorageOptions

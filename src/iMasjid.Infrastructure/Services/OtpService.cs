@@ -1,6 +1,8 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using iMasjid.Application.Interfaces.Persistence;
 using iMasjid.Application.Interfaces.Services;
 using iMasjid.Domain.Entities;
@@ -15,6 +17,7 @@ public class OtpService : IOtpService
     private readonly IEmailService _emailService;
     private readonly IDateTimeProvider _dateTimeProvider;
     private readonly ILogger<OtpService> _logger;
+    private readonly byte[] _otpHashKey;
 
     private static readonly TimeSpan DefaultOtpExpiry = TimeSpan.FromMinutes(10);
 
@@ -23,13 +26,15 @@ public class OtpService : IOtpService
         IUnitOfWork unitOfWork,
         IEmailService emailService,
         IDateTimeProvider dateTimeProvider,
-        ILogger<OtpService> logger)
+        ILogger<OtpService> logger,
+        IOptions<SecuritySettings> securityOptions)
     {
         _context = context;
         _unitOfWork = unitOfWork;
         _emailService = emailService;
         _dateTimeProvider = dateTimeProvider;
         _logger = logger;
+        _otpHashKey = Encoding.UTF8.GetBytes(securityOptions.Value.OtpHashKey);
     }
 
     public async Task<string> GenerateAndSendOtpAsync(
@@ -59,7 +64,7 @@ public class OtpService : IOtpService
         {
             Id = Guid.NewGuid(),
             UserId = user.Id,
-            OtpCode = otpCode,
+            OtpCode = HashOtp(user.Id, purpose, otpCode),
             Purpose = purpose,
             ExpiresOn = now.Add(DefaultOtpExpiry),
             IsUsed = false,
@@ -116,21 +121,38 @@ public class OtpService : IOtpService
             return false;
         }
 
-        if (!string.Equals(activeOtp.OtpCode.Trim(), otpCode.Trim(), StringComparison.Ordinal))
+        var suppliedHash = HashOtp(userId, purpose, otpCode);
+        if (!CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(activeOtp.OtpCode),
+                Encoding.UTF8.GetBytes(suppliedHash)))
         {
-            activeOtp.AttemptsCount++;
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-            _logger.LogWarning("Invalid OTP entered for user {UserId}. Attempt {Attempts}/{MaxAttempts}.", userId, activeOtp.AttemptsCount, activeOtp.MaxAttempts);
+            var updated = await _context.ImUserOtps
+                .Where(o => o.Id == activeOtp.Id && !o.IsUsed && o.ExpiresOn > now && o.AttemptsCount < o.MaxAttempts)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(o => o.AttemptsCount, o => o.AttemptsCount + 1), cancellationToken);
+
+            _logger.LogWarning("Invalid OTP entered for user {UserId}; attempt update applied: {Updated}.", userId, updated == 1);
             return false;
         }
 
-        // OTP is valid - mark as used
-        activeOtp.IsUsed = true;
-        activeOtp.UsedOn = now;
-        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        var consumed = await _context.ImUserOtps
+            .Where(o => o.Id == activeOtp.Id && !o.IsUsed && o.ExpiresOn > now && o.AttemptsCount < o.MaxAttempts)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(o => o.IsUsed, true)
+                .SetProperty(o => o.UsedOn, now), cancellationToken);
+
+        if (consumed != 1)
+            return false;
 
         _logger.LogInformation("OTP successfully verified for user {UserId} (Purpose: '{Purpose}').", userId, purpose);
         return true;
+    }
+
+    private string HashOtp(Guid userId, string purpose, string otpCode)
+    {
+        var payload = $"{userId:N}|{purpose.Trim()}|{otpCode.Trim()}";
+        using var hmac = new HMACSHA256(_otpHashKey);
+        return Convert.ToHexString(hmac.ComputeHash(Encoding.UTF8.GetBytes(payload)));
     }
 
     public string MaskEmail(string email)

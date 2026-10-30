@@ -1,4 +1,5 @@
 using System.Net.Http.Headers;
+using System.Security.Cryptography;
 using System.Text;
 using Hangfire.Dashboard;
 using Microsoft.AspNetCore.Http;
@@ -14,6 +15,11 @@ public class HangfireCustomBasicAuthFilter : IDashboardAuthorizationFilter
     public bool Authorize(DashboardContext context)
     {
         var httpContext = context.GetHttpContext();
+
+        if (!httpContext.Request.IsHttps)
+        {
+            return false;
+        }
 
         // 1. Check if user is already authenticated via JWT / Cookie with SuperAdmin role
         if (httpContext.User.Identity?.IsAuthenticated == true &&
@@ -39,8 +45,13 @@ public class HangfireCustomBasicAuthFilter : IDashboardAuthorizationFilter
 
                     var hangfireSettings = httpContext.RequestServices.GetRequiredService<IOptions<HangfireSettings>>().Value;
 
-                    if (username == hangfireSettings.DashboardUsername &&
-                        password == hangfireSettings.DashboardPassword)
+                    var configuredUsername = Encoding.UTF8.GetBytes(hangfireSettings.DashboardUsername);
+                    var configuredPassword = Encoding.UTF8.GetBytes(hangfireSettings.DashboardPassword);
+                    var suppliedUsername = Encoding.UTF8.GetBytes(username);
+                    var suppliedPassword = Encoding.UTF8.GetBytes(password);
+
+                    if (CryptographicOperations.FixedTimeEquals(suppliedUsername, configuredUsername) &&
+                        CryptographicOperations.FixedTimeEquals(suppliedPassword, configuredPassword))
                     {
                         return true;
                     }
