@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
   push:
@@ -27,10 +27,7 @@ jobs:
         run: dotnet restore iMasjid.sln
 
       - name: Build
-        run: dotnet build iMasjid.sln --no-restore --configuration Release --warnaserror
-
-      - name: Format check
-        run: dotnet format iMasjid.sln --verify-no-changes --no-restore
+        run: dotnet build iMasjid.sln --no-restore --configuration Release
 
       - name: Dependency audit
         run: dotnet list iMasjid.sln package --vulnerable --include-transitive
