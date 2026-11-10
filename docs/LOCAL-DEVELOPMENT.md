@@ -1,20 +1,23 @@
 ﻿# Local development
 
-The API does not keep database, JWT, OTP-HMAC, SMTP, or Hangfire credentials in tracked files.
+Shared Development settings are stored in `src/iMasjid.Api/appsettings.Development.json`.
+Local database and secret values belong in the ignored `src/iMasjid.Api/Secrets.Local.Json` file. Never commit that file.
 
-## Configure User Secrets
+## Configure local settings
 
-Run these commands from the repository root and replace placeholder values with local-only values:
+The Development environment loads `Secrets.Local.Json` automatically when it exists. Create it with the local values required by your machine.
+
+For example, set local environment variables in PowerShell before starting the API:
 
 ```powershell
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=iMasjid;Username=postgres;Password=<local-password>" --project src/iMasjid.Api
-dotnet user-secrets set "Jwt:SecretKey" "<at-least-32-byte-development-key>" --project src/iMasjid.Api
-dotnet user-secrets set "Security:OtpHashKey" "<at-least-32-byte-development-hmac-key>" --project src/iMasjid.Api
-dotnet user-secrets set "Hangfire:DashboardUsername" "<local-dashboard-user>" --project src/iMasjid.Api
-dotnet user-secrets set "Hangfire:DashboardPassword" "<local-dashboard-password>" --project src/iMasjid.Api
+New-Item -ItemType File -Path .\src\iMasjid.Api\Secrets.Local.Json -Force
 ```
 
-The API also requires `Jwt:Issuer`, `Jwt:Audience`, and `Cors:AllowedOrigins`; the tracked `appsettings.json` contains non-secret development defaults for these values.
+```powershell
+dotnet run --project src/iMasjid.Api
+```
+
+The API also requires `Jwt:Issuer`, `Jwt:Audience`, and `Cors:AllowedOrigins`; the tracked `appsettings.json` contains non-secret defaults for these values.
 
 ## Database cutover
 
@@ -33,7 +36,7 @@ The PostgreSQL smoke tests require:
 - A running PostgreSQL instance
 - The schema and seed scripts applied
 - A seeded `superadmin` account expected by the tests
-- The same JWT and `Security:OtpHashKey` settings configured through User Secrets
+- The same JWT and `Security:OtpHashKey` settings configured through `Secrets.Local.Json`
 
 Run the tests with:
 
@@ -41,4 +44,4 @@ Run the tests with:
 dotnet test iMasjid.sln
 ```
 
-Do not commit User Secrets, connection strings, test database passwords, JWT keys, or OTP-HMAC keys.
+Do not commit `Secrets.Local.Json`, connection strings, test database passwords, JWT keys, OTP-HMAC keys, SMTP credentials, or Hangfire passwords.

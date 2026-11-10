@@ -192,16 +192,6 @@ public class TokenService : ITokenService
         var securityToken = tokenHandler.CreateToken(tokenDescriptor);
         var newAccessToken = tokenHandler.WriteToken(securityToken);
 
-        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
-        var consumed = await _context.ImRefreshTokens
-            .Where(r => r.Id == storedToken.Id && !r.IsUsed && !r.IsRevoked && r.ExpiresOn > now)
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(r => r.IsUsed, true)
-                .SetProperty(r => r.ReplacedByToken, HashToken(newRefreshToken)), cancellationToken);
-
-        if (consumed != 1)
-            throw new UnauthorizedException("Refresh token has already been used.");
-
         var newRefreshTokenEntity = new ImRefreshToken
         {
             UserId = storedToken.UserId,
@@ -214,9 +204,23 @@ public class TokenService : ITokenService
             ExpiresOn = now.AddDays(_jwtSettings.RefreshTokenExpirationDays)
         };
 
-        await _context.ImRefreshTokens.AddAsync(newRefreshTokenEntity, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        var executionStrategy = _context.Database.CreateExecutionStrategy();
+        await executionStrategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+            var consumed = await _context.ImRefreshTokens
+                .Where(r => r.Id == storedToken.Id && !r.IsUsed && !r.IsRevoked && r.ExpiresOn > now)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(r => r.IsUsed, true)
+                    .SetProperty(r => r.ReplacedByToken, HashToken(newRefreshToken)), cancellationToken);
+
+            if (consumed != 1)
+                throw new UnauthorizedException("Refresh token has already been used.");
+
+            await _context.ImRefreshTokens.AddAsync(newRefreshTokenEntity, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        });
 
         return new GeneratedToken(
             newAccessToken,
